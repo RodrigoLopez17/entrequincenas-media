@@ -92,7 +92,7 @@ def cuerpo(s):
     if t == 'portada':
         st = s.get('estilo', 'raya')
         baj = f'<p class="bajada">{hi(s["bajada"])}</p>' if s.get('bajada') else ''
-        des = '<div class="desliza">Desliza</div>'
+        des = '' if spec.get('suelto') else '<div class="desliza">Desliza</div>'
         if st == 'cifra':
             return f'<div class="pcifra fitw">{e(s.get("cifra"))}</div><h1 class="m">{hi(s["titular"])}</h1>{baj}{des}'
         if st == 'numero':
@@ -197,11 +197,14 @@ CSS = CSS.replace('%FACES%', FACES)
 N = len(spec['slides'])
 GHOSTS = {'texto': [380, 260, 160], 'lista': [300, 180], 'cuenta': [240, 140], 'versus': [260]}
 def page(i, s):
-    raya = ''.join(f'<i class="{"d" if j < i else ("c" if j == i else "")}"></i>' for j in range(N))
+    if spec.get('suelto'):  # post independiente: firma fija en lugar de progreso
+        raya = '<i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i>'
+    else:
+        raya = ''.join(f'<i class="{"d" if j < i else ("c" if j == i else "")}"></i>' for j in range(N))
     g = GHOSTS.get(s['tipo'])
     ghost = ('<div class="ghost">' + ''.join(f'<i style="width:{w}px"></i>' for w in g) + '</div>') if g else ''
     return f"""<!doctype html><html><head><meta charset="utf-8"><style>{CSS}</style></head><body>
-<div class="s {s['tipo']}">{ghost}<div class="top"><span class="h">{e(spec.get('pilar'))}</span><span>{i+1}/{N}</span></div>
+<div class="s {s['tipo']}">{ghost}<div class="top"><span class="h">{e(spec.get('pilar'))}</span><span>{'' if spec.get('suelto') else f'{i+1}/{N}'}</span></div>
 <div class="main" id="m">{cuerpo(s)}</div>
 <div class="raya">{raya}</div></div></body></html>"""
 
