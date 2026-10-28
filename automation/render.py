@@ -118,6 +118,10 @@ def cuerpo(s):
     if t == 'versus':
         col = lambda x, k: f'<div class="col {k}"><h3>{hi(x["t"])}</h3>{puntos(x.get("puntos"))}</div>'
         return head(s) + f'<h2>{hi(s["titular"])}</h2><div class="vs">{col(s["a"],"a")}<div class="vsx">vs</div>{col(s["b"],"b")}</div>'
+    if t == 'foto':
+        card = (f'<div class="fcard"><div class="fimg" style="background-image:url(\'file://{os.path.abspath(s["img"])}\')"></div><div class="ftint"></div></div>'
+                if s.get('img') else '')
+        return card + head(s) + f'<h2>{hi(s["titular"])}</h2>' + (f'<p>{hi(s["texto"])}</p>' if s.get('texto') else '')
     if t == 'cierre':
         return (f'{raya_grande(5, 4)}<div class="tag">Tu turno</div><h1 class="q">{hi(s["titular"])}</h1>'
                 + (f'<p class="bajada">{hi(s["texto"])}</p>' if s.get('texto') else '')
@@ -186,6 +190,15 @@ li:before{content:'';position:absolute;left:0;top:22px;width:32px;height:12px;bo
 .follow{margin-top:56px;padding-top:40px;border-top:3px solid %line%;display:flex;flex-direction:column;gap:22px;font:500 36px 'Instrument Sans';color:%mut%}
 .fb{display:flex;align-items:center;gap:22px}.fb b{color:%ink%}
 .fi{flex:none;width:64px;height:64px;border-radius:20px;border:3px solid %line%;color:%acc%;display:flex;align-items:center;justify-content:center}.fi svg{width:36px;height:36px}
+.bgf{position:absolute;inset:0;background-size:cover;background-position:center;filter:grayscale(1) contrast(1.1);z-index:0}
+.bgt{position:absolute;inset:0;background:#4B1E8C;mix-blend-mode:multiply;opacity:.6;z-index:0}
+.bgg{position:absolute;inset:0;background:linear-gradient(180deg,%bg%00 0%,%bg%00 22%,%bg%e6 52%,%bg% 66%);z-index:0}
+.conf .rg{display:none}
+.conf .top,.conf .top .h{color:#FFFFFF;text-shadow:0 2px 12px rgba(0,0,0,.35)}
+.fcard{position:relative;height:500px;border-radius:36px;overflow:hidden;margin-bottom:44px;flex:none}
+.fimg{position:absolute;inset:0;background-size:cover;background-position:center;filter:grayscale(1) contrast(1.1)}
+.ftint{position:absolute;inset:0;background:#4B1E8C;mix-blend-mode:multiply;opacity:.55}
+.cred{position:absolute;right:80px;bottom:44px;font:500 18px 'Instrument Sans';color:%mut%;opacity:.8;z-index:2}
 .raya{position:absolute;left:80px;right:80px;bottom:80px;display:flex;gap:10px;z-index:2}
 .raya i{flex:1;height:16px;border-radius:999px;background:%todo%}
 .raya i.d{background:%done%}.raya i.c{background:%cur%;box-shadow:0 0 0 3px %curb% inset}
@@ -202,11 +215,15 @@ def page(i, s):
     else:
         raya = ''.join(f'<i class="{"d" if j < i else ("c" if j == i else "")}"></i>' for j in range(N))
     g = GHOSTS.get(s['tipo'])
+    bgf = ''
+    if s['tipo'] in ('portada', 'cierre') and s.get('img'):
+        bgf = f'<div class="bgf" style="background-image:url(\'file://{os.path.abspath(s["img"])}\')"></div><div class="bgt"></div><div class="bgg"></div>'
+    cred = f'<div class="cred">Foto: {e(s.get("credito"))}</div>' if s.get('img') and s.get('credito') else ''
     ghost = ('<div class="ghost">' + ''.join(f'<i style="width:{w}px"></i>' for w in g) + '</div>') if g else ''
     return f"""<!doctype html><html><head><meta charset="utf-8"><style>{CSS}</style></head><body>
-<div class="s {s['tipo']}">{ghost}<div class="top"><span class="h">{e(spec.get('pilar'))}</span><span>{'' if spec.get('suelto') else f'{i+1}/{N}'}</span></div>
+<div class="s {s['tipo']}{' conf' if bgf else ''}">{bgf}{ghost}<div class="top"><span class="h">{e(spec.get('pilar'))}</span><span>{'' if spec.get('suelto') else f'{i+1}/{N}'}</span></div>
 <div class="main" id="m">{cuerpo(s)}</div>
-<div class="raya">{raya}</div></div></body></html>"""
+<div class="raya">{raya}</div>{cred}</div></body></html>"""
 
 FIT = """() => { const m = document.getElementById('m');
   const over = () => m.scrollHeight > m.clientHeight + 2 || [...m.querySelectorAll('.fitw,.cifra,.row,h1,h2,h3')].some(x => x.scrollWidth > x.clientWidth + 2);

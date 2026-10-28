@@ -37,6 +37,7 @@ LIM = {  # (campo, máximo) por tipo de lámina
     'cuenta': {'etiqueta': 22, 'titular': 45, 'nota': 140},
     'versus': {'etiqueta': 22, 'titular': 45},
     'cierre': {'titular': 70, 'texto': 90},
+    'foto': {'etiqueta': 22, 'titular': 55, 'texto': 140},
 }
 TOL = 1.15  # 15% de tolerancia: el renderizador encoge el texto si hace falta
 
@@ -46,7 +47,7 @@ def textos(o):
         for x in o: yield from textos(x)
     elif isinstance(o, dict):
         for k, v in o.items():
-            if k in ('fuentes', 'notas_verificacion', 'tipo', 'tema', 'estilo', 'icono', 'id'): continue
+            if k in ('fuentes', 'notas_verificacion', 'tipo', 'tema', 'estilo', 'icono', 'id', 'busqueda', 'busqueda2', 'img', 'vid', 'credito'): continue
             yield from textos(v)
 
 def revisar_prohibidas(nombre, pieza):
@@ -93,7 +94,7 @@ def revisar_reel(r):
     dur = sum(float(e.get('dur', 0)) for e in es)
     if not 15 <= dur <= 27: errores.append(f'reel: dura {dur:.1f} s (debe ser 18-24)')
     for e in es:
-        if e.get('tipo') not in ('golpe', 'texto', 'contador', 'cuenta', 'raya', 'pregunta'):
+        if e.get('tipo') not in ('golpe', 'texto', 'contador', 'cuenta', 'raya', 'pregunta', 'foto', 'video'):
             errores.append(f'reel: tipo de escena desconocido {e.get("tipo")}')
         if e.get('tipo') == 'raya' and not (0 <= int(e.get('hechos', 0)) < int(e.get('n', 1))):
             errores.append('reel: escena raya con "hechos" fuera de rango')
@@ -111,6 +112,9 @@ if not errores:
     for key, c, hora in (('manana', cm, cm.get('hora', '8:00')), ('tarde', ct, ct.get('hora', '19:00'))):
         spec = os.path.join(out, c['id'] + '.json')
         json.dump({'id': c['id'], 'tema': c['tema'], 'pilar': c['pilar'], 'slides': c['slides']}, open(spec, 'w'), ensure_ascii=False)
+        f = subprocess.run(['python3', '-I', os.path.join(HERE, 'fotos.py'), spec, os.path.join(out, 'fotos')], capture_output=True, text=True)
+        if 'sin PIXABAY_KEY' in f.stdout or 'sin resultados' in f.stdout or 'error' in f.stdout or f.returncode:
+            avisos.append(f'{key}: fotos incompletas → {(f.stdout + f.stderr)[-200:]}')
         r = subprocess.run(['python3', '-I', os.path.join(HERE, 'render.py'), spec, out, FONTS], capture_output=True, text=True)
         if r.returncode != 0:
             errores.append(f'{key}: falló el render: {r.stderr[-300:]}'); continue
@@ -121,6 +125,9 @@ if not errores:
     if cr and not any(e.startswith('reel') for e in errores):
         spec = os.path.join(out, 'reel.json')
         json.dump({'kicker': cr.get('kicker', cm.get('pilar', '')), 'escenas': cr['escenas']}, open(spec, 'w'), ensure_ascii=False)
+        f = subprocess.run(['python3', '-I', os.path.join(HERE, 'fotos.py'), spec, os.path.join(out, 'fotos')], capture_output=True, text=True)
+        if 'sin PIXABAY_KEY' in f.stdout or 'sin resultados' in f.stdout or 'error' in f.stdout or f.returncode:
+            avisos.append(f'reel: fotos incompletas → {(f.stdout + f.stderr)[-200:]}')
         r = subprocess.run(['python3', '-I', os.path.join(HERE, 'reel.py'), spec, os.path.join(out, 'reel.mp4'), FONTS], capture_output=True, text=True)
         if r.returncode != 0:
             errores.append(f'reel: falló el render: {r.stderr[-300:]}')

@@ -7,6 +7,9 @@ reel.json = {"kicker": "Finanzas personales", "escenas": [...]}; cada escena con
   cuenta:   {"titulo": "...", "filas": [{"c": "concepto", "v": "$1,000", "tipo": "normal"|"resta"|"total"}]}
   raya:     {"n": 15, "hechos": 12, "texto": "..."}  (segmentos que se llenan, ej. días de la quincena)
   pregunta: {"texto": "..."}
+  foto:     {"img": ruta local, "texto", "cifra"?, "credito"?}   (foto real teñida de uva, zoom lento)
+  video:    {"vid": ruta local mp4, "texto", "cifra"?, "credito"?} (video real de fondo, teñido)
+  (fotos.py llena "img"/"vid" a partir de "busqueda"; si falta el archivo, la escena se vuelve texto)
 Todas las cifras deben venir del guion; nada inventado."""
 import json, sys, os, asyncio, subprocess, tempfile, shutil
 from playwright.async_api import async_playwright
@@ -15,6 +18,13 @@ import sonido
 
 spec = json.load(open(sys.argv[1])); out = sys.argv[2]; FONTS = os.path.abspath(sys.argv[3])
 FPS = 30
+for e in spec['escenas']:
+    if e['tipo'] == 'video' and not (e.get('vid') and os.path.exists(e['vid'])):
+        e['tipo'] = 'foto' if (e.get('img') and os.path.exists(e['img'])) else 'texto'
+    if e['tipo'] == 'foto':
+        if e.get('img') and os.path.exists(e['img']): e['img'] = 'file://' + os.path.abspath(e['img'])
+        else: e['tipo'] = 'texto'
+VIDS = [e for e in spec['escenas'] if e['tipo'] == 'video']
 t0 = 0.0
 for e in spec['escenas']:
     e['a'] = round(t0, 3); t0 += e['dur']; e['b'] = round(t0, 3)
@@ -27,7 +37,8 @@ FACES = ff('Bricolage Grotesque', 800, 'bricolage-grotesque-latin-800-normal.wof
 
 HTML = r"""<!doctype html><html><head><meta charset="utf-8"><style>%%FACES%%
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:1080px;height:1920px;overflow:hidden;background:#4B1E8C}
+html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
+#solid{position:absolute;inset:0;background:#4B1E8C}
 #s{position:relative;width:1080px;height:1920px;overflow:hidden;color:#fff;font-family:'Instrument Sans'}
 #bgr{position:absolute;left:-200px;right:-200px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:space-around;opacity:.18}
 #bgr div{height:18px;display:flex;gap:16px}#bgr i{flex:1;border-radius:999px;background:#6B43A8}
@@ -51,8 +62,17 @@ em{font-style:normal;color:#C6F36B}
 .raya p{font:800 84px/1.06 'Bricolage Grotesque';letter-spacing:-3px}
 .pregunta .h{margin-top:70px;font:600 46px 'Instrument Sans';color:#C6F36B}
 .bar2{position:absolute;left:84px;right:84px;bottom:210px;height:12px;background:#6B43A8;border-radius:12px;overflow:hidden;z-index:6}.bar2 i{display:block;height:100%;width:0;background:#C6F36B}
+.media{left:0;right:0;padding:0 84px}
+.media .bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:grayscale(1) contrast(1.15) brightness(.95)}
+.media .t1{position:absolute;inset:0;background:#4B1E8C;mix-blend-mode:multiply;opacity:.6}
+.media.video .t1{mix-blend-mode:normal;opacity:.45}
+.media .t2{position:absolute;inset:0;background:linear-gradient(180deg,#4B1E8Ccc 0%,#4B1E8C22 36%,#4B1E8Cf0 72%)}
+.media .cnt{position:relative;margin-top:620px}
+.media .big{font:800 220px/0.9 'Bricolage Grotesque';letter-spacing:-9px;color:#C6F36B;white-space:nowrap}
+.media p{font:800 80px/1.06 'Bricolage Grotesque';letter-spacing:-3px;margin-top:20px}
+.media .cred{position:absolute;right:84px;bottom:260px;font:500 20px 'Instrument Sans';opacity:.7}
 footer{position:absolute;left:84px;right:84px;bottom:130px;display:flex;justify-content:space-between;font:600 30px 'Instrument Sans';color:#D9CCF0;z-index:6}
-</style></head><body><div id="s"><div id="bgr"></div>
+</style></head><body><div id="s"><div id="solid"></div><div id="bgr"></div>
 <div id="scs"></div><div id="flash"></div><div id="wipe"></div>
 <header><span class="kick">%%KICK%%</span></header>
 <div class="bar2"><i id="pb"></i></div><footer><span>Guárdalo para tu quincena</span><span>Compártelo</span></footer></div>
@@ -68,6 +88,8 @@ E.forEach(e=>{const d=document.createElement('div');d.className='sc '+e.tipo;
  if(e.tipo=='texto')d.innerHTML='<p>'+hiw(e.texto)+'</p>';
  if(e.tipo=='cuenta')d.innerHTML='<h2>'+esc(e.titulo)+'</h2><div class="card">'+e.filas.map(r=>'<div class="row '+(r.tipo||'')+'"><span>'+esc(r.c)+'</span><b>'+esc(r.v)+'</b></div>').join('')+'</div>';
  if(e.tipo=='raya')d.innerHTML='<div class="seg">'+'<i></i>'.repeat(e.n)+'</div><p>'+hiw(e.texto)+'</p>';
+ if(e.tipo=='foto'||e.tipo=='video'){d.className='sc media '+e.tipo;
+   d.innerHTML=(e.tipo=='foto'?'<div class="bg" style="background-image:url(\''+e.img+'\')"></div>':'')+'<div class="t1"></div><div class="t2"></div><div class="cnt">'+(e.cifra?'<div class="big">'+esc(e.cifra)+'</div>':'')+'<p>'+hiw(e.texto)+'</p></div>'+(e.credito?'<div class="cred">'+esc(e.credito)+'</div>':'');}
  if(e.tipo=='pregunta')d.innerHTML='<p>'+hiw(e.texto)+'</p><div class="h">Te leemos en comentarios</div>';
  host.appendChild(d)});
 const cl=x=>Math.min(Math.max(x,0),1), ease=x=>1-Math.pow(1-cl(x),3), back=x=>{x=cl(x);const c=1.7;return 1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)};
@@ -82,13 +104,17 @@ window.render=t=>{
   if(k<0.1)fl=Math.max(fl,0.25*(1-k/0.1));
   let sh=0;if((e.tipo=='golpe'||e.tipo=='contador')&&k<0.35)sh=(1-k/0.35)*14;
   const sx=sh*Math.sin(t*90),sy=sh*Math.cos(t*70),s=1+0.04*(k/e.dur);
-  if(e.tipo=='golpe')el.style.transform=`translate(${sx}px,${sy}px) scale(${(0.55+0.45*back(k/0.3))*s})`;
+  if(e.tipo=='foto'||e.tipo=='video'){el.style.transform='none';const g=el.querySelector('.bg');if(g)g.style.transform=`scale(${1.08+0.14*(k/e.dur)}) translate(${-18*(k/e.dur)}px,${-30*(k/e.dur)}px)`;
+    const big=el.querySelector('.big');if(big){big.style.transform=`translateX(${(1-ease(k/0.4))*-120}px)`;big.style.opacity=ease(k/0.3);}}
+  else if(e.tipo=='golpe')el.style.transform=`translate(${sx}px,${sy}px) scale(${(0.55+0.45*back(k/0.3))*s})`;
   else el.style.transform=`translate(${sx}px,${(1-ease(k/0.3))*90+sy}px) scale(${s})`;
   el.querySelectorAll('.w').forEach((w,j)=>{const p=ease((k-0.15-j*0.07)/0.25);w.style.opacity=p;w.style.transform=`translateY(${(1-p)*40}px)`});
   if(e.tipo=='contador'){const n=el.querySelector('.num');n.textContent=(e.pre||'')+fmt(e.valor*ease(k/1.2),e.dec||0)+(e.suf||'');n.style.fontSize=Math.min(280,Math.floor(1800/n.textContent.length))+'px'}
   if(e.tipo=='cuenta')el.querySelectorAll('.row').forEach((r,j)=>{const p=ease((k-0.3-j*0.4)/0.3);r.style.opacity=p;r.style.transform=`translateX(${(1-p)*-60}px)`});
   if(e.tipo=='raya')el.querySelectorAll('.seg i').forEach((x,j)=>{const on=k>0.2+j*0.09;x.style.background=!on?'#6B43A8':(j==e.hechos?'#C6F36B':(j<e.hechos?'#fff':'#6B43A8'))});
  });
+ const cur=E.find(e=>t>=e.a&&t<e.b), isv=cur&&cur.tipo=='video';
+ document.getElementById('solid').style.opacity=isv?0:1; bg.style.opacity=isv?0:.18;
  document.getElementById('flash').style.opacity=fl;
  document.getElementById('wipe').style.left=(wipe<0?-2000:(-1700+wipe*3400))+'px';
 };
@@ -119,12 +145,22 @@ async def main():
         await pg.goto('file://' + page); await pg.evaluate('document.fonts.ready')
         for k in range(int(DUR * FPS)):
             await pg.evaluate(f'render({k / FPS})')
-            await pg.screenshot(path=os.path.join(fr, f'{k:05d}.jpg'), type='jpeg', quality=92)
+            await pg.screenshot(path=os.path.join(fr, f'{k:05d}.png'), omit_background=True)
         await b.close()
     wav = os.path.join(tmp, 'a.wav'); sonido.pista(DUR, eventos(), wav, semilla=len(spec['escenas']))
-    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-framerate', str(FPS), '-i', os.path.join(fr, '%05d.jpg'), '-i', wav,
-                    '-t', str(DUR), '-c:v', 'libx264', '-crf', '20', '-preset', 'medium', '-pix_fmt', 'yuv420p',
-                    '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '160k', out], check=True)
+    cmd = ['ffmpeg', '-y', '-loglevel', 'error', '-f', 'lavfi', '-i', f'color=c=0x4B1E8C:s=1080x1920:r={FPS}:d={DUR}']
+    for e in VIDS:
+        cmd += ['-stream_loop', '-1', '-t', str(e['dur'] + 0.5), '-i', e['vid']]
+    cmd += ['-framerate', str(FPS), '-i', os.path.join(fr, '%05d.png'), '-i', wav]
+    fc = []; last = '[0:v]'
+    for j, e in enumerate(VIDS):
+        fc.append(f'[{j+1}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps={FPS},hue=s=0,eq=contrast=1.1:brightness=-0.05,setpts=PTS-STARTPTS+{e["a"]}/TB[v{j}]')
+        fc.append(f"{last}[v{j}]overlay=enable='between(t,{e['a']},{e['b']})':eof_action=pass[b{j}]"); last = f'[b{j}]'
+    gi = len(VIDS) + 1
+    fc.append(f'{last}[{gi}:v]overlay=format=auto,format=yuv420p[out]')
+    cmd += ['-filter_complex', ';'.join(fc), '-map', '[out]', '-map', f'{gi+1}:a', '-t', str(DUR),
+            '-c:v', 'libx264', '-crf', '20', '-preset', 'veryfast', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '160k', out]
+    subprocess.run(cmd, check=True)
     shutil.rmtree(tmp); print(out, f'{DUR:.1f}s', len(spec['escenas']), 'escenas')
 
 asyncio.run(main())
