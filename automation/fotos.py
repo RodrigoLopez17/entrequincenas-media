@@ -12,14 +12,16 @@ os.makedirs(outdir, exist_ok=True)
 spec = json.load(open(spec_path))
 key = os.environ.get('PIXABAY_KEY', '').strip()
 usadas = set()
+UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 
 def api(path, **kw):
     params = dict(key=key, safesearch='true', per_page=30, **kw)
-    with urllib.request.urlopen(f'https://pixabay.com/api/{path}?' + urllib.parse.urlencode(params), timeout=20) as r:
+    req = urllib.request.Request(f'https://pixabay.com/api/{path}?' + urllib.parse.urlencode(params), headers={'User-Agent': UA})
+    with urllib.request.urlopen(req, timeout=20) as r:
         return json.load(r).get('hits', [])
 
 def bajar(url, dest):
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    req = urllib.request.Request(url, headers={'User-Agent': UA, 'Referer': 'https://pixabay.com/'})
     with urllib.request.urlopen(req, timeout=90) as r, open(dest, 'wb') as f:
         f.write(r.read())
 
